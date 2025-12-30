@@ -1,0 +1,102 @@
+/**
+ * Core Philosophy: This ruleset enforces a strict guardian-ownership model. The primary authenticated user is a guardian,
+ * who has full and exclusive control over their own profile data and the data of students associated with their account.
+ * All data is protected by requiring a user to be signed in.
+ *
+ * Data Structure: Data is organized hierarchically to simplify security. Each guardian has a root document
+ * at `/guardians/{guardianId}` where `{guardianId}` matches their Firebase Auth UID. All student profiles and their
+ * associated problems are nested within this guardian document, ensuring that ownership is inherited through the path.
+ * A top-level `/problemViews` collection is used to log solution views, which triggers backend functionality.
+ *
+ * Key Security Decisions:
+ * - Guardian-Centric Access: Only authenticated guardians can access the system. There is no concept of a "student" login.
+ * - Strict Ownership: A guardian can only access data within their own document tree (`/guardians/{guardianId}/...`).
+ * - No User Listing: It is not possible for any user to list all guardians in the system.
+ * - Write-Only Log for Events: The `/problemViews` collection is designed to be write-only for clients. Guardians can
+ *   create new view records (for their own activity), but cannot read, update, or delete them. This provides a secure
+ *   way to trigger backend processes like sending emails.
+ *
+ * Denormalization for Authorization: Security is achieved via path-based ownership. The `{guardianId}` in the path is
+ * the primary mechanism for authorization, making rules simple and performant by avoiding extra `get()` calls.
+ * Relational integrity fields like `guardianId` on student documents are validated on write operations to ensure
+ * consistency between the document path and its content.
+ *
+ * Structural Segregation: The private, user-owned data tree (`/guardians`) is kept separate from the event-logging
+ * collection (`/problemViews`). This separation creates a clearer, more secure, and more performant security model.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for DRY and readable rules
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Controls access to a guardian's own profile document.
+     * @path /guardians/{guardianId}
+     * @allow A guardian (auth.uid='guardian123') can (create) their own profile at `/guardians/guardian123`.
+     * @deny An anonymous user cannot (get) any guardian's profile.
+     * @principle Enforces self-creation and strict document ownership for the primary user entity.
+     */
+    match /guardians/{guardianId} {
+      allow get: if isOwner(guardianId);
+      allow list: if false; // Deny listing all guardians.
+      allow create: if isOwner(guardianId) && request.resource.data.id == guardianId;
+      allow update: if isExistingOwner(guardianId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(guardianId);
+    }
+
+    /**
+     * @description Secures student profiles, which are nested under their guardian.
+     * @path /guardians/{guardianId}/students/{studentId}
+     * @allow The guardian 'guardian123' can (list) all students at `/guardians/guardian123/students`.
+     * @deny A different guardian 'guardian456' cannot (get) a student at `/guardians/guardian123/students/studentABC`.
+     * @principle Restricts access to a user's own data tree using path-based ownership.
+     */
+    match /guardians/{guardianId}/students/{studentId} {
+      allow get: if isOwner(guardianId);
+      allow list: if isOwner(guardianId);
+      allow create: if isOwner(guardianId) && request.resource.data.guardianId == guardianId;
+      allow update: if isExistingOwner(guardianId) && request.resource.data.guardianId == resource.data.guardianId;
+      allow delete: if isExistingOwner(guardianId);
+    }
+
+    /**
+     * @description Secures math problems, which are nested under a specific student.
+     * @path /guardians/{guardianId}/students/{studentId}/problems/{problemId}
+     * @allow The guardian 'guardian123' can (create) a new problem for their student at `/guardians/guardian123/students/studentABC/problems/problemXYZ`.
+     * @deny The guardian 'guardian123' cannot (delete) a problem belonging to another guardian's student.
+     * @principle Inherits ownership from the parent path, ensuring only the responsible guardian can manage problems.
+     */
+    match /guardians/{guardianId}/students/{studentId}/problems/{problemId} {
+      allow get: if isOwner(guardianId);
+      allow list: if isOwner(guardianId);
+      allow create: if isOwner(guardianId) && request.resource.data.studentId == studentId;
+      allow update: if isExistingOwner(guardianId) && request.resource.data.studentId == resource.data.studentId;
+      allow delete: if isExistingOwner(guardianId);
+    }
+
+    /**
+     * @description Manages write-only access to log when a guardian views a problem's solution.
+     * @path /problemViews/{problemViewId}
+     * @allow An authenticated guardian 'guardian123' can (create) a document if its `guardianId` field is 'guardian123'.
+     * @deny Any user, including the creator, cannot (get), (list), (update) or (delete) any document in this collection.
+     * @principle Provides a secure "write-only log" for clients to trigger backend functions (like email notifications) without exposing event data.
+     */
+    match /problemViews/{problemViewId} {
+      allow get: if false;
+      allow list: if false;
+      allow create: if isSignedIn() && request.resource.data.guardianId == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}
