@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, Lightbulb } from 'lucide-react';
+import { Loader2, Lightbulb, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -40,6 +40,11 @@ import { generateProblemAction, getHintsAction } from '@/app/actions';
 import { GRADE_LEVELS, TOPICS, DIFFICULTY_LEVELS } from '@/lib/constants';
 import { getTopicIcon } from '@/lib/icons';
 import { Skeleton } from './ui/skeleton';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { v4 as uuidv4 } from 'uuid';
+import { saveProblemAction } from '@/app/actions';
 
 const formSchema = z.object({
   gradeLevel: z.string().min(1, 'Please select a grade level.'),
@@ -49,11 +54,14 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-interface MathProblem {
+export interface MathProblem {
+  id: string;
   statement: string;
   gradeLevel: string;
   topic: string;
   difficulty: string;
+  solution?: string;
+  studentId: string; // Assuming a student context, will use user id for now
 }
 
 export default function MathMentor() {
@@ -62,7 +70,10 @@ export default function MathMentor() {
   const [revealedHintsCount, setRevealedHintsCount] = useState(0);
   const [isLoadingProblem, setIsLoadingProblem] = useState(false);
   const [isLoadingHints, setIsLoadingHints] = useState(false);
+  const [isSavingProblem, setIsSavingProblem] = useState(false);
   const { toast } = useToast();
+  const { user } = useUser();
+  const firestore = useFirestore();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -74,6 +85,7 @@ export default function MathMentor() {
   });
 
   const onSubmit = async (values: FormValues) => {
+    if (!user) return;
     setIsLoadingProblem(true);
     setProblem(null);
     setHints([]);
@@ -81,8 +93,10 @@ export default function MathMentor() {
     try {
       const result = await generateProblemAction(values);
       setProblem({
+        id: uuidv4(),
         statement: result.problemStatement,
         ...values,
+        studentId: user.uid, // Using guardianId as studentId for now
       });
     } catch (error) {
       toast({
@@ -105,6 +119,8 @@ export default function MathMentor() {
         difficultyLevel: problem.difficulty,
         problemStatement: problem.statement,
       });
+      const solution = result.hints.join('\n\n');
+      setProblem(p => p ? {...p, solution} : null);
       setHints(result.hints);
       return result.hints;
     } catch (error) {
@@ -131,13 +147,48 @@ export default function MathMentor() {
   };
 
   const handleShowSolutionClick = async () => {
-    if (hints.length === 0) {
-      const newHints = await fetchAndSetHints();
-      setRevealedHintsCount(newHints.length);
-    } else {
-      setRevealedHintsCount(hints.length);
+    if (!user || !problem) return;
+  
+    const hintsToReveal = hints.length > 0 ? hints : await fetchAndSetHints();
+    if (hintsToReveal.length > 0) {
+      setRevealedHintsCount(hintsToReveal.length);
+  
+      // Log the view action
+      const problemViewRef = collection(firestore, 'problemViews');
+      addDocumentNonBlocking(problemViewRef, {
+        problemId: problem.id,
+        guardianId: user.uid,
+        timestamp: serverTimestamp(),
+      });
+  
+      // Save the problem with solution
+      await handleSaveProblem();
     }
   };
+
+  const handleSaveProblem = async () => {
+    if (!problem || !user) return;
+    setIsSavingProblem(true);
+    try {
+      await saveProblemAction({
+        problem,
+        guardianId: user.uid
+      });
+      toast({
+        title: 'Problem Saved',
+        description: 'The problem has been saved to your profile.',
+      });
+    } catch (error) {
+       toast({
+        variant: 'destructive',
+        title: 'Error Saving Problem',
+        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+      });
+    } finally {
+      setIsSavingProblem(false);
+    }
+  };
+  
 
   const ProblemIcon = problem ? getTopicIcon(problem.topic) : null;
 
@@ -233,7 +284,7 @@ export default function MathMentor() {
               />
             </CardContent>
             <CardFooter>
-              <Button type="submit" disabled={isLoadingProblem} className="w-full sm:w-auto">
+              <Button type="submit" disabled={isLoadingProblem || !user} className="w-full sm:w-auto">
                 {isLoadingProblem && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Generate Problem
               </Button>
@@ -289,29 +340,37 @@ export default function MathMentor() {
             )}
           </CardContent>
           <CardFooter className="flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <Button
-              onClick={handleGetHintClick}
-              disabled={isLoadingHints || (hints.length > 0 && revealedHintsCount >= hints.length)}
-              className="bg-accent text-accent-foreground hover:bg-accent/90"
-            >
-              {isLoadingHints ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Lightbulb className="mr-2 h-4 w-4" />
-              )}
-              {hints.length === 0
-                ? 'Get First Hint'
-                : revealedHintsCount < hints.length
-                ? 'Get Next Hint'
-                : 'All Hints Revealed'}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={handleShowSolutionClick}
-              disabled={isLoadingHints || (hints.length > 0 && revealedHintsCount === hints.length)}
-            >
-              Show Full Solution
-            </Button>
+            {user && (
+              <>
+                <Button
+                  onClick={handleGetHintClick}
+                  disabled={isLoadingHints || (hints.length > 0 && revealedHintsCount >= hints.length)}
+                  className="bg-accent text-accent-foreground hover:bg-accent/90"
+                >
+                  {isLoadingHints ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Lightbulb className="mr-2 h-4 w-4" />
+                  )}
+                  {hints.length === 0
+                    ? 'Get First Hint'
+                    : revealedHintsCount < hints.length
+                    ? 'Get Next Hint'
+                    : 'All Hints Revealed'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={handleShowSolutionClick}
+                  disabled={isLoadingHints || (hints.length > 0 && revealedHintsCount === hints.length)}
+                >
+                  Show Full Solution
+                </Button>
+                <Button onClick={handleSaveProblem} disabled={isSavingProblem || !problem.solution}>
+                  {isSavingProblem ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Save Problem
+                </Button>
+              </>
+            )}
           </CardFooter>
         </Card>
       )}
