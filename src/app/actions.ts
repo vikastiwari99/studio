@@ -2,6 +2,7 @@
 
 import { generateMathProblem, GenerateMathProblemInput, GenerateMathProblemOutput } from '@/ai/flows/generate-math-problems';
 import { provideHintsForProblem, ProvideHintsForProblemInput, ProvideHintsForProblemOutput } from '@/ai/flows/provide-hints-for-problem';
+import { sendSummaryEmail, SendSummaryEmailInput, SendSummaryEmailOutput } from '@/ai/flows/send-summary-email';
 
 export async function generateProblemAction(input: GenerateMathProblemInput): Promise<GenerateMathProblemOutput> {
   try {
@@ -18,5 +19,14 @@ export async function getHintsAction(input: ProvideHintsForProblemInput): Promis
   } catch (error) {
     console.error(error);
     throw new Error("Failed to generate hints. Please try again.");
+  }
+}
+
+export async function sendSummaryEmailAction(input: SendSummaryEmailInput): Promise<SendSummaryEmailOutput> {
+  try {
+    return await sendSummaryEmail(input);
+  } catch (error) {
+    console.error(error);
+    throw new Error("Failed to send summary email. Please try again.");
   }
 }

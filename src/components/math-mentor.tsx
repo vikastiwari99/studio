@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, Lightbulb, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Lightbulb, CheckCircle, XCircle, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -37,12 +37,13 @@ import {
 } from "@/components/ui/accordion"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from '@/hooks/use-toast';
-import { generateProblemAction, getHintsAction } from '@/app/actions';
+import { generateProblemAction, getHintsAction, sendSummaryEmailAction } from '@/app/actions';
 import { GRADE_LEVELS, TOPICS, DIFFICULTY_LEVELS } from '@/lib/constants';
 import { getTopicIcon } from '@/lib/icons';
 import { Skeleton } from './ui/skeleton';
 import { useUser } from '@/firebase';
 import { Input } from './ui/input';
+import { formatDistance } from 'date-fns';
 
 const formSchema = z.object({
   gradeLevel: z.string().min(1, 'Please select a grade level.'),
@@ -67,15 +68,19 @@ export default function MathMentor() {
   const [revealedHintsCount, setRevealedHintsCount] = useState(0);
   const [isLoadingProblem, setIsLoadingProblem] = useState(false);
   const [isLoadingHints, setIsLoadingHints] = useState(false);
+  const [isSendingSummary, setIsSendingSummary] = useState(false);
   const [userAnswer, setUserAnswer] = useState('');
   const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [showDifficultyUpgrade, setShowDifficultyUpgrade] = useState(false);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
 
   const { toast } = useToast();
   const { user } = useUser();
+  const formRef = useRef<HTMLFormElement>(null);
+
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -85,6 +90,12 @@ export default function MathMentor() {
       difficulty: 'Basic',
     },
   });
+
+  useEffect(() => {
+    if (totalQuestions > 0 && !sessionStartTime) {
+      setSessionStartTime(new Date());
+    }
+  }, [totalQuestions, sessionStartTime]);
 
   useEffect(() => {
     if (totalQuestions >= 10 && correctAnswers >= 9) {
@@ -104,9 +115,19 @@ export default function MathMentor() {
     setShowAnswer(false);
   };
 
+  const endSessionAndReset = () => {
+    resetProblemState();
+    setCorrectAnswers(0);
+    setTotalQuestions(0);
+    setSessionStartTime(null);
+  }
+
   const onSubmit = async (values: FormValues) => {
     setIsLoadingProblem(true);
     resetProblemState();
+    if (totalQuestions === 0) {
+      setSessionStartTime(new Date());
+    }
     try {
       const result = await generateProblemAction({ ...values, seed: Math.random() });
       setProblem({
@@ -170,6 +191,41 @@ export default function MathMentor() {
       setRevealedHintsCount((count) => count + 1);
     }
   };
+
+  const handleSendSummary = async () => {
+    if (!user || !sessionStartTime || !formRef.current) return;
+
+    setIsSendingSummary(true);
+    const formData = new FormData(formRef.current);
+    const topic = formData.get('topic') as string;
+    const difficulty = formData.get('difficulty') as string;
+
+    const timeSpent = formatDistance(new Date(), sessionStartTime, { includeSeconds: true });
+
+    try {
+      await sendSummaryEmailAction({
+        email: user.email!,
+        topic,
+        difficulty,
+        score: correctAnswers,
+        totalProblems: totalQuestions,
+        timeSpent,
+      });
+      toast({
+        title: 'Summary Sent!',
+        description: 'Your practice session summary has been sent to your email.',
+      });
+      endSessionAndReset();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Could not send summary.',
+      });
+    } finally {
+      setIsSendingSummary(false);
+    }
+  };
   
   const ProblemIcon = problem ? getTopicIcon(problem.topic) : null;
 
@@ -183,7 +239,7 @@ export default function MathMentor() {
           </CardDescription>
         </CardHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(onSubmit)} ref={formRef}>
             <CardContent className="grid sm:grid-cols-3 gap-4">
               <FormField
                 control={form.control}
@@ -398,6 +454,22 @@ export default function MathMentor() {
               </CardContent>
           )}
         </Card>
+      )}
+
+      {user && totalQuestions > 0 && (
+        <div className="mt-8 flex justify-center">
+          <Button
+            onClick={handleSendSummary}
+            disabled={isSendingSummary}
+          >
+            {isSendingSummary ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="mr-2 h-4 w-4" />
+            )}
+            End Session & Email Summary
+          </Button>
+        </div>
       )}
     </div>
   );
