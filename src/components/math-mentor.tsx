@@ -36,15 +36,15 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { useToast } from '@/hooks/use-toast';
-import { generateProblemAction, getHintsAction } from '@/app/actions';
+import { generateProblemAction, getHintsAction, saveProblemAction } from '@/app/actions';
 import { GRADE_LEVELS, TOPICS, DIFFICULTY_LEVELS } from '@/lib/constants';
 import { getTopicIcon } from '@/lib/icons';
 import { Skeleton } from './ui/skeleton';
-import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useUser, useFirestore } from '@/firebase';
+import { addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
-import { saveProblemAction } from '@/app/actions';
+
 
 const formSchema = z.object({
   gradeLevel: z.string().min(1, 'Please select a grade level.'),
@@ -162,7 +162,7 @@ export default function MathMentor() {
       });
   
       // Save the problem with solution
-      await handleSaveProblem();
+      handleSaveProblem();
     }
   };
 
@@ -170,19 +170,16 @@ export default function MathMentor() {
     if (!problem || !user) return;
     setIsSavingProblem(true);
     try {
-      await saveProblemAction({
-        problem,
-        guardianId: user.uid
-      });
+      await saveProblemAction({ problem, guardianId: user.uid });
       toast({
         title: 'Problem Saved',
         description: 'The problem has been saved to your profile.',
       });
-    } catch (error) {
-       toast({
+    } catch (error: any) {
+      toast({
         variant: 'destructive',
-        title: 'Error Saving Problem',
-        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+        title: 'Save Failed',
+        description: error.message,
       });
     } finally {
       setIsSavingProblem(false);
