@@ -130,7 +130,6 @@ export default function MathMentor() {
     if (!problem) return;
     const correct = userAnswer.trim().toLowerCase() === problem.answer.trim().toLowerCase();
     setIsAnswerCorrect(correct);
-    setShowAnswer(true);
     if (correct) {
       setCorrectAnswers(count => count + 1);
     }
@@ -328,13 +327,13 @@ export default function MathMentor() {
                       placeholder="Your answer" 
                       value={userAnswer}
                       onChange={(e) => setUserAnswer(e.target.value)}
-                      disabled={showAnswer}
+                      disabled={isAnswerCorrect !== null}
                       aria-label="Your Answer"
                     />
-                    <Button onClick={handleCheckAnswer} disabled={!userAnswer || showAnswer}>Check Answer</Button>
+                    <Button onClick={handleCheckAnswer} disabled={!userAnswer || isAnswerCorrect !== null}>Check Answer</Button>
                   </div>
 
-                  {isAnswerCorrect !== null && showAnswer && (
+                  {isAnswerCorrect !== null && (
                     <div className={`flex items-center gap-2 p-3 rounded-md ${isAnswerCorrect ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
                       {isAnswerCorrect ? <CheckCircle className="h-5 w-5 text-green-600" /> : <XCircle className="h-5 w-5 text-red-600" />}
                       <p className={`text-sm font-medium ${isAnswerCorrect ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}`}>
@@ -383,7 +382,7 @@ export default function MathMentor() {
                 <Button
                   variant="secondary"
                   onClick={() => setShowAnswer(true)}
-                  disabled={!userAnswer || showAnswer}
+                  disabled={isAnswerCorrect === null || showAnswer}
                 >
                   Reveal Answer
                 </Button>
