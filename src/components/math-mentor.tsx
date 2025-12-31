@@ -383,7 +383,7 @@ export default function MathMentor() {
                 <Button
                   variant="secondary"
                   onClick={() => setShowAnswer(true)}
-                  disabled={showAnswer}
+                  disabled={!userAnswer || showAnswer}
                 >
                   Reveal Answer
                 </Button>
