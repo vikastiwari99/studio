@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, Lightbulb, Save } from 'lucide-react';
+import { Loader2, Lightbulb, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -35,16 +35,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from '@/hooks/use-toast';
-import { generateProblemAction, getHintsAction, saveProblemAction } from '@/app/actions';
+import { generateProblemAction, getHintsAction } from '@/app/actions';
 import { GRADE_LEVELS, TOPICS, DIFFICULTY_LEVELS } from '@/lib/constants';
 import { getTopicIcon } from '@/lib/icons';
 import { Skeleton } from './ui/skeleton';
-import { useUser, useFirestore } from '@/firebase';
-import { addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
-import { v4 as uuidv4 } from 'uuid';
-
+import { useUser } from '@/firebase';
+import { Input } from './ui/input';
 
 const formSchema = z.object({
   gradeLevel: z.string().min(1, 'Please select a grade level.'),
@@ -60,8 +58,7 @@ export interface MathProblem {
   gradeLevel: string;
   topic: string;
   difficulty: string;
-  solution?: string;
-  studentId: string; // Assuming a student context, will use user id for now
+  answer: string;
 }
 
 export default function MathMentor() {
@@ -70,33 +67,53 @@ export default function MathMentor() {
   const [revealedHintsCount, setRevealedHintsCount] = useState(0);
   const [isLoadingProblem, setIsLoadingProblem] = useState(false);
   const [isLoadingHints, setIsLoadingHints] = useState(false);
-  const [isSavingProblem, setIsSavingProblem] = useState(false);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [totalQuestions, setTotalQuestions] = useState(0);
+  const [showDifficultyUpgrade, setShowDifficultyUpgrade] = useState(false);
+
   const { toast } = useToast();
   const { user } = useUser();
-  const firestore = useFirestore();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      gradeLevel: '',
-      topic: '',
-      difficulty: '',
+      gradeLevel: '5th Grade',
+      topic: 'Multiplication',
+      difficulty: 'Basic',
     },
   });
 
-  const onSubmit = async (values: FormValues) => {
-    if (!user) return;
-    setIsLoadingProblem(true);
+  useEffect(() => {
+    if (totalQuestions >= 10 && correctAnswers >= 9) {
+      setShowDifficultyUpgrade(true);
+      // Reset counters after showing suggestion
+      setTotalQuestions(0);
+      setCorrectAnswers(0);
+    }
+  }, [totalQuestions, correctAnswers]);
+
+  const resetProblemState = () => {
     setProblem(null);
     setHints([]);
     setRevealedHintsCount(0);
+    setUserAnswer('');
+    setIsAnswerCorrect(null);
+    setShowAnswer(false);
+  };
+
+  const onSubmit = async (values: FormValues) => {
+    setIsLoadingProblem(true);
+    resetProblemState();
     try {
-      const result = await generateProblemAction(values);
+      const result = await generateProblemAction({ ...values, seed: Math.random() });
       setProblem({
-        id: uuidv4(),
-        statement: result.problemStatement,
+        id: new Date().toISOString(),
         ...values,
-        studentId: user.uid, // Using guardianId as studentId for now
+        statement: result.problemStatement,
+        answer: result.answer,
       });
     } catch (error) {
       toast({
@@ -109,6 +126,17 @@ export default function MathMentor() {
     }
   };
 
+  const handleCheckAnswer = () => {
+    if (!problem) return;
+    const correct = userAnswer.trim().toLowerCase() === problem.answer.trim().toLowerCase();
+    setIsAnswerCorrect(correct);
+    setShowAnswer(true);
+    if (correct) {
+      setCorrectAnswers(count => count + 1);
+    }
+    setTotalQuestions(count => count + 1);
+  };
+
   const fetchAndSetHints = async () => {
     if (!problem) return;
     setIsLoadingHints(true);
@@ -119,8 +147,6 @@ export default function MathMentor() {
         difficultyLevel: problem.difficulty,
         problemStatement: problem.statement,
       });
-      const solution = result.hints.join('\n\n');
-      setProblem(p => p ? {...p, solution} : null);
       setHints(result.hints);
       return result.hints;
     } catch (error) {
@@ -145,48 +171,7 @@ export default function MathMentor() {
       setRevealedHintsCount((count) => count + 1);
     }
   };
-
-  const handleShowSolutionClick = async () => {
-    if (!user || !problem) return;
   
-    const hintsToReveal = hints.length > 0 ? hints : await fetchAndSetHints();
-    if (hintsToReveal.length > 0) {
-      setRevealedHintsCount(hintsToReveal.length);
-  
-      // Log the view action
-      const problemViewRef = collection(firestore, 'problemViews');
-      addDocumentNonBlocking(problemViewRef, {
-        problemId: problem.id,
-        guardianId: user.uid,
-        timestamp: serverTimestamp(),
-      });
-  
-      // Save the problem with solution
-      handleSaveProblem();
-    }
-  };
-
-  const handleSaveProblem = async () => {
-    if (!problem || !user) return;
-    setIsSavingProblem(true);
-    try {
-      await saveProblemAction({ problem, guardianId: user.uid });
-      toast({
-        title: 'Problem Saved',
-        description: 'The problem has been saved to your profile.',
-      });
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Save Failed',
-        description: error.message,
-      });
-    } finally {
-      setIsSavingProblem(false);
-    }
-  };
-  
-
   const ProblemIcon = problem ? getTopicIcon(problem.topic) : null;
 
   return (
@@ -280,15 +265,29 @@ export default function MathMentor() {
                 )}
               />
             </CardContent>
-            <CardFooter>
-              <Button type="submit" disabled={isLoadingProblem || !user} className="w-full sm:w-auto">
+            <CardFooter className="flex-col sm:flex-row gap-4 items-start sm:items-center">
+              <Button type="submit" disabled={isLoadingProblem} className="w-full sm:w-auto">
                 {isLoadingProblem && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Generate Problem
               </Button>
+               {user && (
+                <div className="text-sm font-medium text-muted-foreground">
+                  Score: {correctAnswers} / {totalQuestions}
+                </div>
+              )}
             </CardFooter>
           </form>
         </Form>
       </Card>
+
+      {showDifficultyUpgrade && (
+        <Alert className="mt-8">
+          <AlertTitle>Great work!</AlertTitle>
+          <AlertDescription>
+            You've answered 9 out of 10 questions correctly. How about trying the next difficulty level?
+          </AlertDescription>
+        </Alert>
+      )}
 
       {isLoadingProblem && (
         <Card className="mt-8 shadow-lg">
@@ -320,6 +319,32 @@ export default function MathMentor() {
             <p className="text-lg leading-relaxed bg-secondary/50 p-4 rounded-md">
               {problem.statement}
             </p>
+            
+            { user &&
+              <div className="mt-4 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      type="text" 
+                      placeholder="Your answer" 
+                      value={userAnswer}
+                      onChange={(e) => setUserAnswer(e.target.value)}
+                      disabled={showAnswer}
+                      aria-label="Your Answer"
+                    />
+                    <Button onClick={handleCheckAnswer} disabled={!userAnswer || showAnswer}>Check Answer</Button>
+                  </div>
+
+                  {isAnswerCorrect !== null && showAnswer && (
+                    <div className={`flex items-center gap-2 p-3 rounded-md ${isAnswerCorrect ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+                      {isAnswerCorrect ? <CheckCircle className="h-5 w-5 text-green-600" /> : <XCircle className="h-5 w-5 text-red-600" />}
+                      <p className={`text-sm font-medium ${isAnswerCorrect ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}`}>
+                        {isAnswerCorrect ? "Correct!" : "Not quite. Try the next one!"}
+                      </p>
+                    </div>
+                  )}
+              </div>
+            }
+
             {hints.length > 0 && (
               <div className="mt-6">
                 <h3 className="font-semibold mb-2 text-lg">Hints</h3>
@@ -341,7 +366,7 @@ export default function MathMentor() {
               <>
                 <Button
                   onClick={handleGetHintClick}
-                  disabled={isLoadingHints || (hints.length > 0 && revealedHintsCount >= hints.length)}
+                  disabled={isLoadingHints || (hints.length > 0 && revealedHintsCount >= hints.length) || showAnswer}
                   className="bg-accent text-accent-foreground hover:bg-accent/90"
                 >
                   {isLoadingHints ? (
@@ -357,18 +382,22 @@ export default function MathMentor() {
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={handleShowSolutionClick}
-                  disabled={isLoadingHints || (hints.length > 0 && revealedHintsCount === hints.length)}
+                  onClick={() => setShowAnswer(true)}
+                  disabled={showAnswer}
                 >
-                  Show Full Solution
-                </Button>
-                <Button onClick={handleSaveProblem} disabled={isSavingProblem || !problem.solution}>
-                  {isSavingProblem ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Save Problem
+                  Reveal Answer
                 </Button>
               </>
             )}
           </CardFooter>
+          {showAnswer && (
+              <CardContent>
+                <div className="mt-4 p-4 bg-muted rounded-md">
+                    <h4 className="font-semibold text-md mb-2">The correct answer is:</h4>
+                    <p className="text-lg font-bold text-primary">{problem.answer}</p>
+                </div>
+              </CardContent>
+          )}
         </Card>
       )}
     </div>

@@ -15,11 +15,13 @@ const GenerateMathProblemInputSchema = z.object({
   gradeLevel: z.string().describe('The grade level of the student.'),
   topic: z.string().describe('The math topic for the problem.'),
   difficulty: z.string().describe('The difficulty level of the problem (Basic, Moderate, Complex).'),
+  seed: z.number().describe('A random number to ensure a unique problem is generated.'),
 });
 export type GenerateMathProblemInput = z.infer<typeof GenerateMathProblemInputSchema>;
 
 const GenerateMathProblemOutputSchema = z.object({
   problemStatement: z.string().describe('The generated math problem statement.'),
+  answer: z.string().describe('The correct answer to the problem.'),
 });
 export type GenerateMathProblemOutput = z.infer<typeof GenerateMathProblemOutputSchema>;
 
@@ -33,13 +35,14 @@ const prompt = ai.definePrompt({
   output: {schema: GenerateMathProblemOutputSchema},
   prompt: `You are a math problem generator for students.
 
-  Generate a math problem based on the following parameters:
+  Generate a unique math problem and its corresponding answer based on the following parameters. Use the seed value to ensure variety.
 
   Grade Level: {{{gradeLevel}}}
   Topic: {{{topic}}}
   Difficulty: {{{difficulty}}}
+  Seed: {{{seed}}}
 
-  The problem statement should be clear and concise.
+  The problem statement should be clear and concise. The answer should be just the final numerical or symbolic answer, without explanation.
   `,
 });
 
