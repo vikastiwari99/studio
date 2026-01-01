@@ -9,7 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 
 const SendSummaryEmailInputSchema = z.object({
   email: z.string().email().describe('The email address of the recipient.'),
@@ -38,8 +38,9 @@ const sendSummaryEmailFlow = ai.defineFlow(
   },
   async (input) => {
     // In a real application, you would integrate with an email service like SendGrid, Resend, etc.
-    // For this example, we will just log the email content to the console.
-    console.log('--- Sending Practice Summary Email ---');
+    // For this development example, we will just log the email content to the console. No actual email is sent.
+    console.log('--- SIMULATING PRACTICE SUMMARY EMAIL ---');
+    console.log('This is a mock email. In a production app, this would be sent to the user.');
     console.log(`To: ${input.email}`);
     console.log('Subject: Your Child\'s MathMentorAI Practice Summary');
     console.log('Body:');
