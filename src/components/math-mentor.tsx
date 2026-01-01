@@ -193,12 +193,10 @@ export default function MathMentor() {
   };
 
   const handleSendSummary = async () => {
-    if (!user || !sessionStartTime || !formRef.current) return;
+    if (!user || !sessionStartTime) return;
 
     setIsSendingSummary(true);
-    const formData = new FormData(formRef.current);
-    const topic = formData.get('topic') as string;
-    const difficulty = formData.get('difficulty') as string;
+    const { topic, difficulty } = form.getValues();
 
     const timeSpent = formatDistance(new Date(), sessionStartTime, { includeSeconds: true });
 
