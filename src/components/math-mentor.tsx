@@ -211,7 +211,7 @@ export default function MathMentor() {
       });
       toast({
         title: 'Summary Sent!',
-        description: 'Your practice session summary has been sent to your email.',
+        description: `Your practice session summary has been sent to ${user.email!}.`,
       });
       endSessionAndReset();
     } catch (error) {
