@@ -29,12 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from '@/hooks/use-toast';
 import { generateProblemAction, getHintsAction, sendSummaryEmailAction } from '@/app/actions';
@@ -63,7 +57,24 @@ export interface MathProblem {
   answer: string;
 }
 
-export default function MathMentor() {
+interface MathMentorProps {
+  correctAnswers: number;
+  setCorrectAnswers: React.Dispatch<React.SetStateAction<number>>;
+  totalQuestions: number;
+  setTotalQuestions: React.Dispatch<React.SetStateAction<number>>;
+  sessionStartTime: Date | null;
+  setSessionStartTime: React.Dispatch<React.SetStateAction<Date | null>>;
+}
+
+
+export default function MathMentor({ 
+  correctAnswers, 
+  setCorrectAnswers, 
+  totalQuestions, 
+  setTotalQuestions, 
+  sessionStartTime, 
+  setSessionStartTime 
+}: MathMentorProps) {
   const [problem, setProblem] = useState<MathProblem | null>(null);
   const [hints, setHints] = useState<string[]>([]);
   const [revealedHintsCount, setRevealedHintsCount] = useState(0);
@@ -73,10 +84,7 @@ export default function MathMentor() {
   const [userAnswer, setUserAnswer] = useState('');
   const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
-  const [correctAnswers, setCorrectAnswers] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(0);
   const [showDifficultyUpgrade, setShowDifficultyUpgrade] = useState(false);
-  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   const { toast } = useToast();
@@ -97,7 +105,7 @@ export default function MathMentor() {
     if (totalQuestions > 0 && !sessionStartTime) {
       setSessionStartTime(new Date());
     }
-  }, [totalQuestions, sessionStartTime]);
+  }, [totalQuestions, sessionStartTime, setSessionStartTime]);
 
   useEffect(() => {
     if (totalQuestions >= 10 && correctAnswers >= 9) {
@@ -106,7 +114,7 @@ export default function MathMentor() {
       setTotalQuestions(0);
       setCorrectAnswers(0);
     }
-  }, [totalQuestions, correctAnswers]);
+  }, [totalQuestions, correctAnswers, setTotalQuestions, setCorrectAnswers]);
 
   // If the user logs in while the auth dialog is open, send the summary
   useEffect(() => {
@@ -114,6 +122,7 @@ export default function MathMentor() {
       handleSendSummary();
       setShowAuthDialog(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, showAuthDialog]);
 
   const resetProblemState = () => {
@@ -459,7 +468,7 @@ export default function MathMentor() {
               ) : (
                 <Send className="mr-2 h-4 w-4" />
               )}
-              End Session & Email Summary
+              End Session &amp; Email Summary
             </Button>
           </Auth>
         </div>

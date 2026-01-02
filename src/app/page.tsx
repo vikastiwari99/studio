@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import MathMentor from '@/components/math-mentor';
 import { BrainCircuit, Loader2 } from 'lucide-react';
 import { useUser, FirebaseClientProvider } from '@/firebase';
@@ -7,6 +8,10 @@ import Auth from '@/components/auth';
 
 function App() {
   const { isUserLoading } = useUser();
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [totalQuestions, setTotalQuestions] = useState(0);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+
 
   if (isUserLoading) {
     return (
@@ -32,7 +37,14 @@ function App() {
           <Auth />
         </div>
       </header>
-      <MathMentor />
+      <MathMentor
+        correctAnswers={correctAnswers}
+        setCorrectAnswers={setCorrectAnswers}
+        totalQuestions={totalQuestions}
+        setTotalQuestions={setTotalQuestions}
+        sessionStartTime={sessionStartTime}
+        setSessionStartTime={setSessionStartTime}
+      />
     </main>
   );
 }
