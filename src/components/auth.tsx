@@ -21,21 +21,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
 
-interface AuthProps {
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  showTrigger?: boolean;
-  children?: React.ReactNode;
-}
-
-export default function Auth({ open: controlledOpen, onOpenChange: setControlledOpen, showTrigger = true, children }: AuthProps) {
+export default function Auth() {
   const { user } = useUser();
   const auth = useAuth();
   const { toast } = useToast();
-  const [internalOpen, setInternalOpen] = useState(false);
-
-  const open = controlledOpen ?? internalOpen;
-  const setOpen = setControlledOpen ?? setInternalOpen;
 
   const handleSignOut = async () => {
     try {
@@ -61,38 +50,16 @@ export default function Auth({ open: controlledOpen, onOpenChange: setControlled
     );
   }
 
-  const handleAuthSuccess = () => {
-    setOpen(false);
-  }
-
-  if (children) {
-    return (
-       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild onClick={() => setOpen(true)}>
-          {children}
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Guardian Access</DialogTitle>
-          </DialogHeader>
-          <AuthTabs onAuthSuccess={handleAuthSuccess} />
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      {showTrigger &&
-        <DialogTrigger asChild>
-          <Button>Login / Sign Up</Button>
-        </DialogTrigger>
-      }
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button>Login / Sign Up</Button>
+      </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Guardian Access</DialogTitle>
         </DialogHeader>
-        <AuthTabs onAuthSuccess={handleAuthSuccess} />
+        <AuthTabs onAuthSuccess={() => {}} />
       </DialogContent>
     </Dialog>
   );

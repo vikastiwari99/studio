@@ -38,7 +38,6 @@ import { Skeleton } from './ui/skeleton';
 import { useUser } from '@/firebase';
 import { Input } from './ui/input';
 import { formatDistance } from 'date-fns';
-import Auth from './auth';
 
 const formSchema = z.object({
   gradeLevel: z.string().min(1, 'Please select a grade level.'),
@@ -57,24 +56,10 @@ export interface MathProblem {
   answer: string;
 }
 
-interface MathMentorProps {
-  correctAnswers: number;
-  setCorrectAnswers: React.Dispatch<React.SetStateAction<number>>;
-  totalQuestions: number;
-  setTotalQuestions: React.Dispatch<React.SetStateAction<number>>;
-  sessionStartTime: Date | null;
-  setSessionStartTime: React.Dispatch<React.SetStateAction<Date | null>>;
-}
-
-
-export default function MathMentor({ 
-  correctAnswers, 
-  setCorrectAnswers, 
-  totalQuestions, 
-  setTotalQuestions, 
-  sessionStartTime, 
-  setSessionStartTime 
-}: MathMentorProps) {
+export default function MathMentor() {
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [totalQuestions, setTotalQuestions] = useState(0);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [problem, setProblem] = useState<MathProblem | null>(null);
   const [hints, setHints] = useState<string[]>([]);
   const [revealedHintsCount, setRevealedHintsCount] = useState(0);
@@ -85,7 +70,6 @@ export default function MathMentor({
   const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [showDifficultyUpgrade, setShowDifficultyUpgrade] = useState(false);
-  const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   const { toast } = useToast();
   const { user } = useUser();
@@ -105,7 +89,7 @@ export default function MathMentor({
     if (totalQuestions > 0 && !sessionStartTime) {
       setSessionStartTime(new Date());
     }
-  }, [totalQuestions, sessionStartTime, setSessionStartTime]);
+  }, [totalQuestions, sessionStartTime]);
 
   useEffect(() => {
     if (totalQuestions >= 10 && correctAnswers >= 9) {
@@ -114,16 +98,7 @@ export default function MathMentor({
       setTotalQuestions(0);
       setCorrectAnswers(0);
     }
-  }, [totalQuestions, correctAnswers, setTotalQuestions, setCorrectAnswers]);
-
-  // If the user logs in while the auth dialog is open, send the summary
-  useEffect(() => {
-    if(user && showAuthDialog) {
-      handleSendSummary();
-      setShowAuthDialog(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, showAuthDialog]);
+  }, [totalQuestions, correctAnswers]);
 
   const resetProblemState = () => {
     setProblem(null);
@@ -212,13 +187,8 @@ export default function MathMentor({
   };
 
   const handleSendSummary = async () => {
-    if (!sessionStartTime) return;
+    if (!sessionStartTime || !user) return;
     
-    if (!user) {
-      setShowAuthDialog(true);
-      return;
-    }
-
     setIsSendingSummary(true);
     const { topic, difficulty } = form.getValues();
 
@@ -458,7 +428,6 @@ export default function MathMentor({
 
       {totalQuestions > 0 && (
         <div className="mt-8 flex justify-center">
-          <Auth open={showAuthDialog} onOpenChange={setShowAuthDialog} showTrigger={false}>
             <Button
               onClick={handleSendSummary}
               disabled={isSendingSummary}
@@ -470,7 +439,6 @@ export default function MathMentor({
               )}
               End Session &amp; Email Summary
             </Button>
-          </Auth>
         </div>
       )}
     </div>
