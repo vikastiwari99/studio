@@ -10,6 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import nodemailer from 'nodemailer';
 
 const SendSummaryEmailInputSchema = z.object({
   email: z.string().email().describe('The email address of the recipient.'),
@@ -23,6 +24,7 @@ export type SendSummaryEmailInput = z.infer<typeof SendSummaryEmailInputSchema>;
 
 const SendSummaryEmailOutputSchema = z.object({
   success: z.boolean().describe('Whether the email was sent successfully.'),
+  message: z.string().describe('A message indicating the result.'),
 });
 export type SendSummaryEmailOutput = z.infer<typeof SendSummaryEmailOutputSchema>;
 
@@ -37,21 +39,60 @@ const sendSummaryEmailFlow = ai.defineFlow(
     outputSchema: SendSummaryEmailOutputSchema,
   },
   async (input) => {
-    // In a real application, you would integrate with an email service like SendGrid, Resend, etc.
-    // For this development example, we will just log the email content to the console. No actual email is sent.
-    console.log('--- SIMULATING PRACTICE SUMMARY EMAIL ---');
-    console.log('This is a mock email. In a production app, this would be sent to the user.');
-    console.log(`To: ${input.email}`);
-    console.log('Subject: Your Child\'s MathMentorAI Practice Summary');
-    console.log('Body:');
-    console.log(`Great work! Here is the summary of the latest practice session:`);
-    console.log(`- Topic: ${input.topic}`);
-    console.log(`- Difficulty: ${input.difficulty}`);
-    console.log(`- Score: ${input.score} / ${input.totalProblems}`);
-    console.log(`- Time Spent: ${input.timeSpent}`);
-    console.log('------------------------------------');
-    
-    // Simulate a successful email send.
-    return { success: true };
+    const { email, topic, difficulty, score, totalProblems, timeSpent } = input;
+
+    // Check if SMTP environment variables are set
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.warn('SMTP environment variables not set. Skipping real email. Check your .env file.');
+      // Fallback to console logging if config is missing
+      console.log('--- SIMULATING PRACTICE SUMMARY EMAIL (SMTP details missing) ---');
+      console.log(`To: ${email}`);
+      console.log('Subject: Your MathMentorAI Practice Summary');
+      console.log('Body:');
+      console.log(`Great work! Here is the summary of the latest practice session:`);
+      console.log(`- Topic: ${topic}`);
+      console.log(`- Difficulty: ${difficulty}`);
+      console.log(`- Score: ${score} / ${totalProblems}`);
+      console.log(`- Time Spent: ${timeSpent}`);
+      console.log('------------------------------------');
+      return { success: false, message: 'Email not sent. SMTP configuration is missing.' };
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: (Number(process.env.SMTP_PORT) || 587) === 465, // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: `"MathMentorAI" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: 'Your MathMentorAI Practice Summary',
+      html: `
+        <h1>MathMentorAI Practice Summary</h1>
+        <p>Great work! Here is the summary of the latest practice session:</p>
+        <ul>
+          <li><strong>Topic:</strong> ${topic}</li>
+          <li><strong>Difficulty:</strong> ${difficulty}</li>
+          <li><strong>Score:</strong> ${score} / ${totalProblems}</li>
+          <li><strong>Time Spent:</strong> ${timeSpent}</li>
+        </ul>
+        <p>Keep up the great work!</p>
+      `,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log(`Email summary sent to ${email}`);
+      return { success: true, message: `Email summary sent to ${email}` };
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      // In case of an error, do not expose detailed error info to the client
+      throw new Error('There was an error sending the summary email. Please check the server logs.');
+    }
   }
 );
