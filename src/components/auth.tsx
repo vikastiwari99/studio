@@ -21,13 +21,22 @@ import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
 
-export default function Auth() {
+interface AuthProps {
+  onBeforeSignOut?: () => Promise<void>;
+}
+
+export default function Auth({ onBeforeSignOut }: AuthProps) {
   const { user } = useUser();
   const auth = useAuth();
   const { toast } = useToast();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleSignOut = async () => {
+    setIsSigningOut(true);
     try {
+      if (onBeforeSignOut) {
+        await onBeforeSignOut();
+      }
       await signOut(auth);
       toast({ title: 'Signed Out', description: 'You have been successfully signed out.' });
     } catch (error: any) {
@@ -36,6 +45,8 @@ export default function Auth() {
         title: 'Sign Out Error',
         description: error.message,
       });
+    } finally {
+      setIsSigningOut(false);
     }
   };
 
@@ -43,7 +54,8 @@ export default function Auth() {
     return (
       <div className="flex items-center gap-4">
         <span className="text-sm text-muted-foreground hidden sm:inline">{user.email}</span>
-        <Button onClick={handleSignOut} variant="outline">
+        <Button onClick={handleSignOut} variant="outline" disabled={isSigningOut}>
+          {isSigningOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Sign Out
         </Button>
       </div>
