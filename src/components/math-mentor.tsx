@@ -44,6 +44,7 @@ import { Skeleton } from './ui/skeleton';
 import { useUser } from '@/firebase';
 import { Input } from './ui/input';
 import { formatDistance } from 'date-fns';
+import Auth from './auth';
 
 const formSchema = z.object({
   gradeLevel: z.string().min(1, 'Please select a grade level.'),
@@ -76,6 +77,7 @@ export default function MathMentor() {
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [showDifficultyUpgrade, setShowDifficultyUpgrade] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   const { toast } = useToast();
   const { user } = useUser();
@@ -105,6 +107,14 @@ export default function MathMentor() {
       setCorrectAnswers(0);
     }
   }, [totalQuestions, correctAnswers]);
+
+  // If the user logs in while the auth dialog is open, send the summary
+  useEffect(() => {
+    if(user && showAuthDialog) {
+      handleSendSummary();
+      setShowAuthDialog(false);
+    }
+  }, [user, showAuthDialog]);
 
   const resetProblemState = () => {
     setProblem(null);
@@ -193,7 +203,12 @@ export default function MathMentor() {
   };
 
   const handleSendSummary = async () => {
-    if (!user || !sessionStartTime) return;
+    if (!sessionStartTime) return;
+    
+    if (!user) {
+      setShowAuthDialog(true);
+      return;
+    }
 
     setIsSendingSummary(true);
     const { topic, difficulty } = form.getValues();
@@ -323,11 +338,9 @@ export default function MathMentor() {
                 {isLoadingProblem && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Generate Problem
               </Button>
-               {user && (
-                <div className="text-sm font-medium text-muted-foreground">
-                  Score: {correctAnswers} / {totalQuestions}
-                </div>
-              )}
+              <div className="text-sm font-medium text-muted-foreground">
+                Score: {correctAnswers} / {totalQuestions}
+              </div>
             </CardFooter>
           </form>
         </Form>
@@ -373,7 +386,6 @@ export default function MathMentor() {
               {problem.statement}
             </p>
             
-            { user &&
               <div className="mt-4 space-y-4">
                   <div className="flex items-center gap-2">
                     <Input 
@@ -396,26 +408,8 @@ export default function MathMentor() {
                     </div>
                   )}
               </div>
-            }
-
-            {hints.length > 0 && (
-              <div className="mt-6">
-                <h3 className="font-semibold mb-2 text-lg">Hints</h3>
-                <Accordion type="multiple" value={Array.from({length: revealedHintsCount}, (_, i) => `item-${i}`)} className="w-full">
-                  {hints.slice(0, revealedHintsCount).map((hint, index) => (
-                    <AccordionItem value={`item-${index}`} key={index}>
-                      <AccordionTrigger>Hint #{index + 1}</AccordionTrigger>
-                      <AccordionContent className="text-base">
-                        {hint}
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              </div>
-            )}
           </CardContent>
           <CardFooter className="flex-col sm:flex-row gap-4 items-start sm:items-center">
-            {user && (
               <>
                 <Button
                   onClick={handleGetHintClick}
@@ -441,7 +435,6 @@ export default function MathMentor() {
                   Reveal Answer
                 </Button>
               </>
-            )}
           </CardFooter>
           {showAnswer && (
               <CardContent>
@@ -454,19 +447,21 @@ export default function MathMentor() {
         </Card>
       )}
 
-      {user && totalQuestions > 0 && (
+      {totalQuestions > 0 && (
         <div className="mt-8 flex justify-center">
-          <Button
-            onClick={handleSendSummary}
-            disabled={isSendingSummary}
-          >
-            {isSendingSummary ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="mr-2 h-4 w-4" />
-            )}
-            End Session & Email Summary
-          </Button>
+          <Auth open={showAuthDialog} onOpenChange={setShowAuthDialog} showTrigger={false}>
+            <Button
+              onClick={handleSendSummary}
+              disabled={isSendingSummary}
+            >
+              {isSendingSummary ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="mr-2 h-4 w-4" />
+              )}
+              End Session & Email Summary
+            </Button>
+          </Auth>
         </div>
       )}
     </div>

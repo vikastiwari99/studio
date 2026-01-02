@@ -6,7 +6,7 @@ import { useUser, FirebaseClientProvider } from '@/firebase';
 import Auth from '@/components/auth';
 
 function App() {
-  const { user, isUserLoading } = useUser();
+  const { isUserLoading } = useUser();
 
   if (isUserLoading) {
     return (
@@ -32,7 +32,7 @@ function App() {
           <Auth />
         </div>
       </header>
-      {user ? <MathMentor /> : <p className="text-center text-lg">Please log in to use MathMentorAI.</p>}
+      <MathMentor />
     </main>
   );
 }
