@@ -10,6 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const GenerateMathProblemInputSchema = z.object({
   gradeLevel: z.string().describe('The grade level of the student.'),
@@ -33,6 +34,7 @@ const prompt = ai.definePrompt({
   name: 'generateMathProblemPrompt',
   input: {schema: GenerateMathProblemInputSchema},
   output: {schema: GenerateMathProblemOutputSchema},
+  model: googleAI('gemini-1.5-flash-latest'),
   prompt: `You are a math problem generator for students.
 
   Generate a unique math problem and its corresponding answer based on the following parameters. Use the seed value to ensure variety.
