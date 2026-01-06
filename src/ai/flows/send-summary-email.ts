@@ -41,10 +41,18 @@ const sendSummaryEmailFlow = ai.defineFlow(
   async (input) => {
     const { email, topic, difficulty, score, totalProblems, timeSpent } = input;
 
-    // Check if SMTP environment variables are set
-    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.warn('SMTP environment variables not set. Skipping real email. Check your .env file.');
-      // Fallback to console logging if config is missing
+    const smtpConfigMissing = !process.env.SMTP_HOST || !process.env.SMTP_PORT || !process.env.SMTP_USER || !process.env.SMTP_PASS;
+
+    // In production, if SMTP is not configured, we should fail gracefully.
+    if (smtpConfigMissing && process.env.NODE_ENV === 'production') {
+        console.error('SMTP configuration is missing in production environment. Cannot send email.');
+        // Do not throw an error, but return a failure message.
+        return { success: false, message: 'Email service is not configured on the server.' };
+    }
+    
+    // In development, simulate the email if SMTP is not configured.
+    if (smtpConfigMissing) {
+      console.warn('SMTP environment variables not set. Simulating email. Check your .env file.');
       console.log('--- SIMULATING PRACTICE SUMMARY EMAIL (SMTP details missing) ---');
       console.log(`To: ${email}`);
       console.log('Subject: Your MathMentorAI Practice Summary');
@@ -55,7 +63,8 @@ const sendSummaryEmailFlow = ai.defineFlow(
       console.log(`- Score: ${score} / ${totalProblems}`);
       console.log(`- Time Spent: ${timeSpent}`);
       console.log('------------------------------------');
-      return { success: false, message: 'Email not sent. SMTP configuration is missing.' };
+      // In dev, we can consider this a "success" for UI purposes, but indicate simulation.
+      return { success: true, message: 'Email simulated in console. SMTP configuration is missing.' };
     }
 
     const transporter = nodemailer.createTransport({
