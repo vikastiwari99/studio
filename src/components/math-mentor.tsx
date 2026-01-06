@@ -31,7 +31,8 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from '@/hooks/use-toast';
-import { generateProblemAction, getHintsAction } from '@/app/actions';
+import { getHintsAction } from '@/app/actions';
+import { generateMathProblem } from '@/ai/flows/generate-math-problems';
 import { GRADE_LEVELS, TOPICS, DIFFICULTY_LEVELS } from '@/lib/constants';
 import { getTopicIcon } from '@/lib/icons';
 import { Skeleton } from './ui/skeleton';
@@ -124,7 +125,7 @@ export default function MathMentor({
       setSessionStartTime(new Date());
     }
     try {
-      const result = await generateProblemAction({ ...values, seed: Math.random() });
+      const result = await generateMathProblem({ ...values, seed: Math.random() });
       setProblem({
         id: new Date().toISOString(),
         ...values,
@@ -132,10 +133,11 @@ export default function MathMentor({
         answer: result.answer,
       });
     } catch (error) {
+      console.error("Error generating problem:", error);
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+        title: 'Error Generating Problem',
+        description: error instanceof Error ? error.message : 'An unknown error occurred. Please check the console.',
       });
     } finally {
       setIsLoadingProblem(false);
