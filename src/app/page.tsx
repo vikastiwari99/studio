@@ -11,6 +11,7 @@ import MathMentor from '@/components/math-mentor';
 import { useToast } from '@/hooks/use-toast';
 import { sendSummaryEmailAction } from '@/app/actions';
 import { formatDistance } from 'date-fns';
+import { User } from 'firebase/auth';
 
 const formSchema = z.object({
   gradeLevel: z.string().min(1, 'Please select a grade level.'),
@@ -38,15 +39,15 @@ function App() {
     },
   });
 
-  const handleSendSummary = async () => {
-    if (!sessionStartTime || !user || totalQuestions === 0) return;
+  const handleSendSummary = async (currentUser: User | null) => {
+    if (!sessionStartTime || !currentUser || !currentUser.email || totalQuestions === 0) return;
 
     const { topic, difficulty } = form.getValues();
     const timeSpent = formatDistance(new Date(), sessionStartTime, { includeSeconds: true });
 
     try {
       await sendSummaryEmailAction({
-        email: user.email!,
+        email: currentUser.email,
         topic,
         difficulty,
         score: correctAnswers,
@@ -55,7 +56,7 @@ function App() {
       });
       toast({
         title: 'Summary Sent!',
-        description: `Your practice session summary has been sent to ${user.email!}.`,
+        description: `Your practice session summary has been sent to ${currentUser.email}.`,
       });
       setIsSummarySent(true);
       return true; // Indicate success
@@ -109,7 +110,7 @@ function App() {
              <Auth 
                onBeforeSignOut={async () => {
                   if (totalQuestions > 0 && !isSummarySent) {
-                    await handleSendSummary();
+                    await handleSendSummary(user);
                   }
                }}
              />
@@ -126,7 +127,7 @@ function App() {
           sessionStartTime={sessionStartTime}
           setSessionStartTime={setSessionStartTime}
           endSessionAndReset={endSessionAndReset}
-          handleSendSummary={handleSendSummary}
+          handleSendSummary={() => handleSendSummary(user)}
           isSummarySent={isSummarySent}
         />
       ) : (
