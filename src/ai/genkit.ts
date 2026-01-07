@@ -6,9 +6,5 @@ import {googleAI} from '@genkit-ai/google-genai';
 // a clear error. We recommend setting this in your hosting provider's
 // environment variable settings.
 export const ai = genkit({
-  plugins: [googleAI({
-    // Explicitly configure the model for all generation tasks.
-    // This provides a central and unambiguous model definition.
-    model: 'gemini-pro',
-  })],
+  plugins: [googleAI()],
 });
