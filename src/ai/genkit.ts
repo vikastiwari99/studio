@@ -1,15 +1,11 @@
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 
-if (!process.env.GEMINI_API_KEY) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('The GEMINI_API_KEY environment variable is not set. Please add it to your hosting provider\'s environment variables.');
-  } else {
-    throw new Error('The GEMINI_API_KEY environment variable is not set. Please add it to your .env file.');
-  }
-}
-
+// The googleAI() plugin will automatically look for the GEMINI_API_KEY 
+// in the environment variables. If it's not found, Genkit will throw
+// a clear error. We recommend setting this in your hosting provider's
+// environment variable settings.
 export const ai = genkit({
-  plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})],
-  // The default model is configured in the prompt itself.
+  plugins: [googleAI()],
+  // The model used for generation is configured in the prompt definition.
 });
