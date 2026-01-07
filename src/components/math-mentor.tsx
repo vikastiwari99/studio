@@ -172,6 +172,7 @@ export default function MathMentor({
         title: 'Error',
         description: error instanceof Error ? error.message : 'An unknown error occurred.',
       });
+      // Return empty array on error
       return [];
     } finally {
       setIsLoadingHints(false);
@@ -181,7 +182,7 @@ export default function MathMentor({
   const handleGetHintClick = async () => {
     if (hints.length === 0) {
       const newHints = await fetchAndSetHints();
-      if (newHints.length > 0) {
+      if (newHints && newHints.length > 0) {
         setRevealedHintsCount(1);
       }
     } else if (revealedHintsCount < hints.length) {
@@ -423,3 +424,5 @@ export default function MathMentor({
     </div>
   );
 }
+
+    
