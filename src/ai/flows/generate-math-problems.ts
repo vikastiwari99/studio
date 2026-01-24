@@ -33,7 +33,7 @@ const prompt = ai.definePrompt({
   name: 'generateMathProblemPrompt',
   input: {schema: GenerateMathProblemInputSchema},
   output: {schema: GenerateMathProblemOutputSchema},
-  model: 'googleai/gemini-pro',
+  model: 'googleai/gemini-1.0-pro',
   prompt: `You are a math problem generator for students.
 
   Generate a unique math problem and its corresponding answer based on the following parameters. Use the seed value to ensure variety.

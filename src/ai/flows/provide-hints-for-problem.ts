@@ -32,6 +32,7 @@ const provideHintsForProblemPrompt = ai.definePrompt({
   name: 'provideHintsForProblemPrompt',
   input: {schema: ProvideHintsForProblemInputSchema},
   output: {schema: ProvideHintsForProblemOutputSchema},
+  model: 'googleai/gemini-1.0-pro',
   prompt: `You are an expert math tutor. Your goal is to provide helpful, step-by-step hints to students who are stuck on a math problem.
 
   The student is in grade level: {{{gradeLevel}}}.
