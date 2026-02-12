@@ -13,8 +13,8 @@ if (!geminiApiKey) {
   console.log(`GEMINI_API_KEY loaded successfully. Length: ${geminiApiKey.length}, Value: ${maskedKey}`);
 }
 
-// Explicitly passing the API key to rule out any issues with automatic
-// environment variable detection by the Genkit plugin.
+// Rely on the default behavior of the Google AI plugin to find the API key
+// from the environment variables.
 export const ai = genkit({
-  plugins: [googleAI({apiKey: geminiApiKey})],
+  plugins: [googleAI()],
 });
